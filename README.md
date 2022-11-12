@@ -12,66 +12,8 @@ a lockless 64 bit timer using a 32 bit timer register
 // enable interrupts
 ```
 
+
 ```c++
-#include <inttypes.h>
-
-extern uint32_t wrap_count;
-extern uint32_t last_tick_count;
-
-/**
-  \brief   Get Priority Mask
-  \details Returns the current state of the priority mask bit from the Priority Mask Register.
-  \return               Priority Mask value
- */
-static inline uint32_t __get_PRIMASK(void)
-{
-  register uint32_t priMask;
-   __asm volatile ( "mrs	%0, PRIMASK" : "=r" (priMask) );
-
-  return(priMask);
-}
-
-
-/**
-  \brief   Set Priority Mask
-  \details Assigns the given value to the Priority Mask Register.
-  \param [in]    priMask  Priority Mask
- */
-static inline void __set_PRIMASK(uint32_t priMask)
-{
-   __asm volatile ( "msr	PRIMASK, %0" :: "r" (priMask) );
-}
-
-// set priority mask to 0 and return previous priority mask.
-static inline uint32_t disable_interrupts()
-{
-    uint32_t primask = __get_PRIMASK();
-
-    /* disable all interrupts */
-    __set_PRIMASK(0);
-
-    return primask;
-}
-
-static inline void restore_interrupts(uint32_t primask)
-{
-    __set_PRIMASK(primask);
-}
-
-#define DWT_BASE            (0xE0001000UL)                            /*!< DWT Base Address */
-#define DWT                 ((DWT_Type       *)     DWT_BASE      )   /*!< DWT configuration struct */
-
-typedef struct
-{
-  volatile uint32_t CTRL;                   /*!< Offset: 0x000 (R/W)  Control Register */
-  volatile uint32_t CYCCNT;                 /*!< Offset: 0x004 (R/W)  Cycle Count Register */
-} DWT_Type;
-
-static inline uint32_t read_WDT_CYCCNT()
-{
-    return DWT->CYCCNT;
-}
-
 static inline uint64_t read_tick64()
 {
     uint32_t primask;
@@ -105,64 +47,9 @@ uint64_t foo()
 ```c++
 
 extern volatile uint32_t wrap_count_zone[2];
-#include <inttypes.h>
 
 extern uint32_t wrap_count;
 extern uint32_t last_tick_count;
-
-/**
-  \brief   Get Priority Mask
-  \details Returns the current state of the priority mask bit from the Priority Mask Register.
-  \return               Priority Mask value
- */
-static inline uint32_t __get_PRIMASK(void)
-{
-  register uint32_t priMask;
-   __asm volatile ( "mrs	%0, PRIMASK" : "=r" (priMask) );
-
-  return(priMask);
-}
-
-
-/**
-  \brief   Set Priority Mask
-  \details Assigns the given value to the Priority Mask Register.
-  \param [in]    priMask  Priority Mask
- */
-static inline void __set_PRIMASK(uint32_t priMask)
-{
-   __asm volatile ( "msr	PRIMASK, %0" :: "r" (priMask) );
-}
-
-// set priority mask to 0 and return previous priority mask.
-static inline uint32_t disable_interrupts()
-{
-    uint32_t primask = __get_PRIMASK();
-
-    /* disable all interrupts */
-    __set_PRIMASK(0);
-
-    return primask;
-}
-
-static inline void restore_interrupts(uint32_t primask)
-{
-    __set_PRIMASK(primask);
-}
-
-#define DWT_BASE            (0xE0001000UL)                            /*!< DWT Base Address */
-#define DWT                 ((DWT_Type       *)     DWT_BASE      )   /*!< DWT configuration struct */
-
-typedef struct
-{
-  volatile uint32_t CTRL;                   /*!< Offset: 0x000 (R/W)  Control Register */
-  volatile uint32_t CYCCNT;                 /*!< Offset: 0x004 (R/W)  Cycle Count Register */
-} DWT_Type;
-
-static inline uint32_t read_WDT_CYCCNT()
-{
-    return DWT->CYCCNT;
-}
 
 static inline uint64_t read_64_cyccnt()
 {
@@ -176,6 +63,21 @@ static inline uint64_t read_64_cyccnt()
     result |= cnt; // note |= seems to generate slightly better code than +=
     return result;
 }
+```
+
+which assembles to:
+
+```
+foo:
+        ldr     r2, .L11
+        ldr     r3, .L11+4
+        ldr     r0, [r2, #4]
+        lsrs    r2, r0, #31
+        ldr     r1, [r3, r2, lsl #2]
+        bx      lr
+.L11:
+        .word   0xE0001000
+        .word   wrap_count_zone
 ```
 
 this requires that the zones counts are updated at least twice before the 32 counter wraps.  perhaps every operating system tick:
@@ -238,5 +140,69 @@ void mt_time_update_64_bit_wrap_counts()
     //            get ready for zone 1 to be active)
     // 0x70000000..0x7fffffff      1     0       1              1       zone=last_zone we do nothing.
     // 0x80000000..0xefffffff      0     -       1              1       returns immediately.
+}
+```
+
+
+# cortex-M definitions:
+
+```c++
+#include <inttypes.h>
+
+extern uint32_t wrap_count;
+extern uint32_t last_tick_count;
+
+/**
+  \brief   Get Priority Mask
+  \details Returns the current state of the priority mask bit from the Priority Mask Register.
+  \return               Priority Mask value
+ */
+static inline uint32_t __get_PRIMASK(void)
+{
+  register uint32_t priMask;
+   __asm volatile ( "mrs	%0, PRIMASK" : "=r" (priMask) );
+
+  return(priMask);
+}
+
+
+/**
+  \brief   Set Priority Mask
+  \details Assigns the given value to the Priority Mask Register.
+  \param [in]    priMask  Priority Mask
+ */
+static inline void __set_PRIMASK(uint32_t priMask)
+{
+   __asm volatile ( "msr	PRIMASK, %0" :: "r" (priMask) );
+}
+
+// set priority mask to 0 and return previous priority mask.
+static inline uint32_t disable_interrupts()
+{
+    uint32_t primask = __get_PRIMASK();
+
+    /* disable all interrupts */
+    __set_PRIMASK(0);
+
+    return primask;
+}
+
+static inline void restore_interrupts(uint32_t primask)
+{
+    __set_PRIMASK(primask);
+}
+
+#define DWT_BASE            (0xE0001000UL)                            /*!< DWT Base Address */
+#define DWT                 ((DWT_Type       *)     DWT_BASE      )   /*!< DWT configuration struct */
+
+typedef struct
+{
+  volatile uint32_t CTRL;                   /*!< Offset: 0x000 (R/W)  Control Register */
+  volatile uint32_t CYCCNT;                 /*!< Offset: 0x004 (R/W)  Cycle Count Register */
+} DWT_Type;
+
+static inline uint32_t read_WDT_CYCCNT()
+{
+    return DWT->CYCCNT;
 }
 ```
