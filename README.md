@@ -18,8 +18,6 @@ static inline uint64_t read_tick64()
 {
     uint32_t primask;
     
-    /* Read PRIMASK register, check interrupt status before you disable them */
-    /* Returns 0 if they are enabled, or non-zero if disabled */
     primask = disable_interrupts();
     uint32_t tick_count = read_WDT_CYCCNT();
     if (tick_count < last_tick_count)
@@ -41,6 +39,38 @@ uint64_t foo()
 }
 ```
 
+# which assembles to:
+
+```
+foo:
+        mrs     ip, PRIMASK
+        movs    r3, #0
+        msr     PRIMASK, r3
+        ldr     r3, .L5
+        ldr     r2, .L5+4
+        ldr     r3, [r3, #4]
+        ldr     r1, [r2]
+        cmp     r3, r1
+        bcc     .L2
+        ldr     r1, .L5+8
+        ldr     r1, [r1]
+.L3:
+        str     r3, [r2]
+        movs    r0, #0
+        msr     PRIMASK, ip
+        adds    r0, r3, r0
+        bx      lr
+.L2:
+        ldr     r0, .L5+8
+        ldr     r1, [r0]
+        adds    r1, r1, #1
+        str     r1, [r0]
+        b       .L3
+.L5:
+        .word   -536866816
+        .word   last_tick_count
+        .word   wrap_count
+```
 
 # lockless way:
 
