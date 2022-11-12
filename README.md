@@ -3,6 +3,14 @@ a lockless 64 bit timer using a 32 bit timer register
 
 # typical way to extend a 32 bit timer to a 64 bit timer:
 
+```
+// disable interrupts
+// read 32 timer
+// if timer < last timer increment wrap count
+// save last timer
+// result = timer + wrap_count << 32
+// enable interrupts
+```
 
 ```c++
 #include <inttypes.h>
