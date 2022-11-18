@@ -99,12 +99,12 @@ which assembles to:
 
 ```
 foo:
-        ldr     r2, .L11
-        ldr     r3, .L11+4
-        ldr     r0, [r2, #4]
-        lsrs    r2, r0, #31
-        ldr     r1, [r3, r2, lsl #2]
-        bx      lr
+        ldr     r2, .L11        // r2 = address of DWT (0xe0001000)
+        ldr     r3, .L11+4      // r3 = address of wrap_count_zone
+        ldr     r0, [r2, #4]    // r0 = read DWT->CYCCNT
+        lsrs    r2, r0, #31     // r2 = zone (top bit of DWT->CYCCNT)
+        ldr     r1, [r3, r2, lsl #2] // r1 = wrap_count_zone[zone]
+        bx      lr              // 64 bit result returned in r0/r1
 .L11:
         .word   0xE0001000
         .word   wrap_count_zone
